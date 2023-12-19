@@ -1,0 +1,10 @@
+main:
+  label: 'FreeIPA'
+  host: 'freeipa.example.local'
+  port: 389
+  uid: 'uid'
+  encryption: 'start_tls'
+  bind_dn: 'uid=gitlab,cn=sysaccounts,cn=etc,dc=example,dc=local'
+  password: '<ldap_password>'
+  base: 'cn=accounts,dc=example,dc=local'
+  verify_certificates: false

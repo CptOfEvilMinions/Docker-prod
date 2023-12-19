@@ -1,0 +1,88 @@
+---
+version: "3.9"
+services:
+  ######################################## webconsole ########################################
+  webconsole:
+    image: linuxserver/unifi-controller:7.2.94
+    networks:
+      - unifi-backend
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - MEM_LIMIT=1024 #optional
+      - MEM_STARTUP=1024 #optional
+      - TZ=America/Chicago
+    volumes:
+      - webconsole:/config
+    ports:
+      - target: 3478
+        published: 3478
+        protocol: udp
+        mode: host
+      - target: 10001
+        published: 10001
+        protocol: udp
+        mode: host
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
+      - target: 8081
+        published: 8081
+        protocol: tcp
+        mode: host
+      - target: 8443
+        published: 8443
+        protocol: tcp
+        mode: host
+      - target: 8880
+        published: 8880
+        protocol: tcp
+        mode: host
+      - target: 6789
+        published: 6789
+        protocol: tcp
+        mode: host
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+        reservations:
+          memory: 100M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 120s
+
+
+  ######################################## poller ########################################
+  unpoller:
+    image: ghcr.io/unpoller/unpoller:v2.8.1
+    environment:
+      # https://unpoller.com/docs/install/configuration/
+      - UP_UNIFI_DYNAMIC=false
+      - UP_UNIFI_DEFAULT_URL=https://webconsole:8443
+      - UP_UNIFI_DEFAULT_USER=unifipoller
+      - UP_UNIFI_DEFAULT_PASS=<password>
+      - UP_PROMETHEUS_DISABLE=false
+      - UP_INFLUXDB_DISABLE=true
+    networks:
+      - unifi-backend
+    depends_on:
+      - webconsole
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+        reservations:
+          memory: 10M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 120s
+
+networks:
+  unifi-backend:
+
+volumes:
+  webconsole:

@@ -1,0 +1,156 @@
+version: '3.9'
+services:
+  ######################################## Gitlab ########################################
+  gitlab:
+    image: gitlab/gitlab-ce:14.7.3-ce.0
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        from_file('/omnibus_config.rb')
+        external_url "https://gitlab.example.local/"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitlab.rule=Host(`gitlab.example.local`)"
+      - "traefik.http.routers.gitlab.tls=true"
+      - "traefik.http.routers.gitlab.service=gitlab"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=80"
+      - "traefik.docker.network=traefik_traefik-net"
+    configs:
+      - source: gitlab-config
+        target: /omnibus_config.rb
+      - source: gitlab-ldap-config
+        target: /etc/gitlab/ldap_settings.yml
+    secrets:
+      - gitlab-root-password
+      - gitlab-postgres-gitlab-password
+    networks:
+      - traefik_traefik-net
+      - gitlab-backend
+    ports:
+      - 5000:80
+      - '2222:22'
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - gitlab-data:/var/opt/gitlab
+      - gitlab-config:/etc/gitlab
+      - gitlab-logs:/var/log/gitlab
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 300M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 50
+        window: 120s
+
+  ######################################## Docker Registry ########################################
+  # registry:
+  #   image: registry:2.7.1
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.registry.rule=Host(`registry.example.local`)"
+  #     - "traefik.http.routers.registry.tls=true"
+  #   environment:
+  #     - REGISTRY_HTTP_HOST=https://registry.example.local
+  #   #configs:
+  #   #  - source: docker-registry-config
+  #   #    target: /etc/docker/registry/config.yml
+  #   networks:
+  #     - gitlab-backend
+  #     - traefik_traefik-net
+  #   volumes:
+  #     - registry-data:/var/lib/registry
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         #cpus: '1'
+  #         memory: 150M
+  #       reservations:
+  #         #cpus: '0.25'
+  #         memory: 100M
+  #     restart_policy:
+  #       condition: on-failure
+  #       delay: 5s
+  #       max_attempts: 50
+  #       window: 120s
+
+  ######################################## Redis ########################################
+  redis:
+    image: redis:6.0.10
+    volumes:
+      - redis-data:/var/lib/redis:Z
+    networks:
+      - gitlab-backend
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+        reservations:
+          memory: 100M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 50
+        window: 120s
+
+  ######################################## Postgres ########################################
+  postgres:
+    image: postgres:12-alpine
+    environment:
+      - POSTGRES_DB=gitlabhq_production
+      - POSTGRES_USER=gitlab
+      - POSTGRES_PASSWORD_FILE=/run/secrets/gitlab-postgres-gitlab-password
+    secrets:
+      - gitlab-postgres-gitlab-password
+    configs:
+      - source: postgres-extension-script
+        target: /docker-entrypoint-initdb.d/postgres-extension-script.sh
+        mode: 0755
+    networks:
+      - gitlab-backend
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+        reservations:
+          memory: 100M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 50
+        window: 120s
+
+volumes:
+  gitlab-data:
+  gitlab-config:
+  gitlab-logs:
+  redis-data:
+  postgresql-data:
+  registry-data:
+
+secrets:
+  gitlab-postgres-gitlab-password:
+    external: true
+  gitlab-root-password:
+    external: true
+
+networks:
+  gitlab-backend:
+  traefik_traefik-net:
+    external: true
+
+configs:
+  postgres-extension-script:
+    file: ./conf/gitlab/postgres-entrypoint.sh
+  gitlab-config:
+    file: ./conf/gitlab/gitlab.rb
+  #docker-registry-config:
+  #  file: ./conf/gitlab/registry-config.yml
+  gitlab-ldap-config:
+    file: ./conf/gitlab/gitlab-ldab.yml

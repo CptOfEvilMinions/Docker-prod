@@ -1,0 +1,29 @@
+---
+version: "3.9"
+services:
+  ######################################## idrac_exporter ########################################
+  idrac_exporter:
+    image: mrlhansen/idrac_exporter:5b0b360
+    configs:
+      - source: idrac-exporter-config
+        target: /etc/prometheus/idrac.yml
+    networks:
+      - grafana_prometheus-backend
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+        reservations:
+          memory: 10M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 120s
+
+networks:
+  grafana_prometheus-backend:
+    external: true
+
+configs:
+  idrac-exporter-config:
+    file: ./conf/idrac_exporter/idrac.yml

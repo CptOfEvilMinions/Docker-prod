@@ -1,0 +1,4 @@
+default:
+  user: metrics@pve
+  password: <pve_password>
+  verify_ssl: false

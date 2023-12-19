@@ -1,0 +1,37 @@
+version: "3.9"
+services:
+  squid:
+    image: squid-alpine
+    networks:
+      - default
+    ports:
+      - "6969:6969"
+    configs:
+      - source: squid-config
+        target: /etc/squid/squid.conf
+        uid: '31'
+        gid: '31'
+    volumes:
+      - squid-logs:/var/log/squid
+      - squid-cache:/var/spool/squid
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 25M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 100
+        window: 120s
+
+configs:
+  squid-config:
+    external: true
+
+volumes:
+  squid-cache:
+  squid-logs:

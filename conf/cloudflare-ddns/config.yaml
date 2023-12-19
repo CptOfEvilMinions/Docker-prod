@@ -1,0 +1,13 @@
+auth:
+  scopedToken: <token>
+domains:
+  - name: vpn.example.local
+    type: A
+    proxied: false
+    create: true
+    zoneId: <zone_id>
+  - name: metrics.example.local
+    type: A
+    proxied: false
+    create: true
+    zoneId: <zone_id>

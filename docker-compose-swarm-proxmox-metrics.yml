@@ -1,0 +1,29 @@
+---
+version: "3.9"
+services:
+  ######################################## prometheus-pve-exporter ########################################
+  prometheus-pve-exporter:
+    image: prompve/prometheus-pve-exporter:2.3
+    configs:
+      - source: pve-exporter-config
+        target: /etc/pve.yml
+    networks:
+      - grafana_prometheus-backend
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+        reservations:
+          memory: 10M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 120s
+
+networks:
+  grafana_prometheus-backend:
+    external: true
+
+configs:
+  pve-exporter-config:
+    file: ./conf/pve-exporter/pve.yml

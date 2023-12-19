@@ -1,0 +1,28 @@
+version: 0.1
+log:
+  accesslog:
+    disabled: true
+  level: info
+  formatter: text
+  fields:
+    service: registry
+    environment: prod
+storage:
+  filesystem:
+    rootdirectory: /var/lib/registry
+    maxthreads: 100
+  maintenance:
+    uploadpurging:
+      enabled: yes
+      age: 2160h # 90 days
+      interval: 24h
+      dryrun: false
+# auth:
+#   none:
+http:
+  addr: 0.0.0.0:5000
+  host: https://registry.example.local
+
+# The proxy structure allows a registry to be configured as a pull-through cache to Docker Hub
+proxy:
+  remoteurl: https://registry-1.docker.io

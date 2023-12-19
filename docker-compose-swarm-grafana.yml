@@ -1,0 +1,181 @@
+version: "3.9"
+services:
+  ############################################### Grafana ###############################################
+  grafana:
+    image: grafana/grafana:10.1.0-ubuntu
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.example.local`)"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.port=3000"
+      - "traefik.docker.network=traefik_traefik-net"
+    secrets:
+      - grafana-admin-passwd
+    environment:
+      # https://www.blackvoid.club/grafana-8-influxdb-2-telegraf-2021-monitoring-stack/
+      - GF_SERVER_DOMAIN=grafana.example.local
+      - GF_SECURITY_ADMIN_USER=grafana
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana-admin-passwd
+      - GF_PATHS_PROVISIONING=/var/grafana-docker/provisioning
+      # PLugins for unifi: https://unpoller.com/docs/dependencies/grafana
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,natel-discrete-panel,grafana-piechart-panel,grafana-simple-json-datasource,grafana-worldmap-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - grafana-provisioning:/etc/grafana/provisioning/
+    networks:
+      - traefik_traefik-net
+      - influxdb-backend
+      - prometheus-backend
+    depends_on:
+      - influxdb
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+        reservations:
+          memory: 20M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 50
+        window: 120s
+
+  ############################################### InfluxDB ###############################################
+  influxdb:
+    image: influxdb:2.1.1-alpine
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.influxdb.rule=Host(`influxdb.example.local`)"
+      - "traefik.http.routers.influxdb.tls=true"
+      - "traefik.port=8086"
+      - "traefik.docker.network=traefik_traefik-net"
+    environment:
+      # https://www.blackvoid.club/grafana-8-influxdb-2-telegraf-2021-monitoring-stack/
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=<password>
+      - DOCKER_INFLUXDB_INIT_ORG=example
+      - DOCKER_INFLUXDB_INIT_BUCKET=db0
+      - DOCKER_INFLUXDB_INIT_RETENTION=4w
+    networks:
+      - traefik_traefik-net
+      - influxdb-backend
+    volumes:
+      - influxdb-data:/var/lib/influxdb
+      - influxdb2-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 10M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 50
+        window: 120s
+
+  ############################################### Prometheus ###############################################
+  prometheus:
+    image: prom/prometheus:v2.46.0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.example.local`)"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.port=9090"
+      - "traefik.docker.network=traefik_traefik-net"
+    command:
+      #https://github.com/Einsteinish/Docker-Compose-Prometheus-and-Grafana/blob/master/docker-compose.yml
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=365d'
+      - '--web.enable-lifecycle'
+    configs:
+      - source: prometheus-scrape-config
+        target: /etc/prometheus/prometheus.yml
+      - source: prometheus-rules-config
+        target: /etc/prometheus/rules.yml
+    networks:
+      - traefik_traefik-net
+      - prometheus-backend
+      - unifi-controller_unifi-backend
+      - pihole_pihole-backend
+    volumes:
+      - prometheus-data:/prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 10M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 50
+        window: 120s
+
+  ############################################### alertmanager ###############################################
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    #command: --config.file=/tmp/alertmanager.yml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.example.local`)"
+      - "traefik.http.routers.alertmanager.tls=true"
+      - "traefik.port=9093"
+      - "traefik.docker.network=traefik_traefik-net"
+    configs:
+      - source: alertmanager-config
+        target: /etc/alertmanager/alertmanager.yml
+    networks:
+      - traefik_traefik-net
+      - prometheus-backend
+    volumes:
+      - alertmanager-data:/alertmanager
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+        reservations:
+          memory: 10M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 50
+        window: 120s
+
+secrets:
+  grafana-admin-passwd:
+    external: true
+  alertmanager-slack-webhook:
+    external: true
+
+configs:
+  prometheus-scrape-config:
+    file: ./conf/prometheus/prometheus.yml
+  prometheus-rules-config:
+    file: conf/prometheus/rules.yml
+  alertmanager-config:
+    external: true
+
+networks:
+  traefik_traefik-net:
+    external: true
+  unifi-controller_unifi-backend:
+    external: true
+  pihole_pihole-backend:
+    external: true
+  influxdb-backend:
+  prometheus-backend:
+
+volumes:
+  grafana-data:
+  grafana-provisioning:
+  influxdb-data:
+  influxdb2-data:
+  influxdb-config:
+  prometheus-data:
+  alertmanager-data:

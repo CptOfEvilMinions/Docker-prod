@@ -1,0 +1,8 @@
+dn: uid=gitlab,cn=sysaccounts,cn=etc,dc=example,dc=network
+changetype: add
+objectclass: account
+objectclass: simplesecurityobject
+uid: gitlab
+userPassword: <password>
+passwordExpirationTime: 20380119031407Z
+nsIdleTimeout: 0

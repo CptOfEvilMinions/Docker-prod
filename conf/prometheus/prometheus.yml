@@ -1,0 +1,78 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+# Rules and alerts are read from the specified file(s)
+rule_files:
+  - rules.yml
+
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+
+    # Override the global default and scrape targets from this job every 5 seconds.
+    scrape_interval: 30s
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+      - targets: [
+          # Docker - cAdvisor
+          '192.168.1.210:9080',
+          # Docker - node-exporter
+          '192.168.1.210:9100',
+        ]
+
+  ############################### unifi ###############################
+  - job_name: 'unifipoller'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['unpoller:9130']
+
+
+  ############################### traefik ###############################
+  - job_name: 'traefik'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['traefik:8082']
+
+  ############################### pihole ###############################
+  - job_name: 'pihole'
+    static_configs:
+      - targets: ['pihole-exporter:9617']
+
+  ############################### idrac_exporter ###############################
+  - job_name: idrac
+    static_configs:
+      - targets: ['192.168.1.210']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: idrac_exporter:9348
+
+  ############################### prometheus-pve-exporter ###############################
+  - job_name: 'pve'
+    static_configs:
+      - targets:
+        - 192.168.1.250:443  # Proxmox VE node.
+    metrics_path: /pve
+    params:
+      module: [default]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: prometheus-pve-exporter:9221  # PVE exporter.
+
+############################### alerting ###############################
+alerting:
+  alertmanagers:
+    - scheme: http
+      static_configs:
+        - targets: [ 'alertmanager:9093' ]

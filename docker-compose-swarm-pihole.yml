@@ -1,0 +1,116 @@
+# https://mroach.com/2020/08/pi-hole-and-cloudflared-with-docker/
+# https://docs.pi-hole.net/guides/dns/cloudflared/
+version: "3.9"
+services:
+  ##################################### pihole #####################################
+  pihole:
+    image: pihole/pihole:2022.10
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pihole.rule=Host(`pihole.example.local`)"
+      - "traefik.http.routers.pihole.tls=true"
+      - "traefik.http.routers.pihole.service=pihole"
+      - "traefik.http.services.pihole.loadbalancer.server.port=80"
+      - "traefik.docker.network=traefik_traefik-net"
+    environment:
+      - TZ=America/Chicago
+      - WEBPASSWORD_FILE=/run/secrets/pihole-web-passwd
+      - PIHOLE_DNS_=cloudflared#5053
+      - DHCP_ACTIVE=false
+    secrets:
+      - pihole-web-passwd
+    configs:
+      - source: pihole-dnsmasq-forward-config
+        target: /etc/dnsmasq.d/02-example-dns-forward.conf
+    networks:
+      - traefik_traefik-net
+      - pihole-backend
+    ports:
+      - target: 53
+        published: 53
+        protocol: tcp
+        mode: host
+      - target: 53
+        published: 53
+        protocol: udp
+        mode: host
+    volumes:
+      - pihole-data:/etc/pihole
+      - dnsmasq-data:/etc/dnsmasq.d
+    depends_on:
+      - cloudflared
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+        reservations:
+          memory: 100M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 120s
+
+  ############################################### cloudflared ###############################################
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: cloudflared /etc/cloudflared/config.yml
+    configs:
+      - source: pihole-cloudflare-config
+        target: /etc/cloudflared/config.yml
+    networks:
+      - pihole-backend
+    deploy:
+      mode: replicated
+      replicas: 3
+      resources:
+        limits:
+          memory: 50M
+        reservations:
+          memory: 10M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 120s
+
+  ##################################### pihole-exporter #####################################
+  pihole-exporter:
+    image: ekofr/pihole-exporter:v0.3.0
+    environment:
+      - PIHOLE_PROTOCOL=http
+      - PIHOLE_PORT=80
+      - PIHOLE_HOSTNAME=pihole
+      - PIHOLE_PASSWORD=<password>
+    networks:
+      - pihole-backend
+    depends_on:
+      - pihole
+    deploy:
+      resources:
+        limits:
+          memory: 50M
+        reservations:
+          memory: 10M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 50
+        window: 120s
+
+networks:
+  pihole-backend:
+  traefik_traefik-net:
+    external: true
+
+volumes:
+  pihole-data:
+  dnsmasq-data:
+
+secrets:
+  pihole-web-passwd:
+    external: true
+
+configs:
+  pihole-cloudflare-config:
+    file: ./conf/pihole/cloudflare.yml
+  pihole-dnsmasq-forward-config:
+    file: ./conf/pihole/dnsmasq_forward.conf

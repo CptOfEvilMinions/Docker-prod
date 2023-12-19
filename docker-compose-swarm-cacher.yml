@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  apt-cacher-ng:
+    image: sameersbn/apt-cacher-ng:latest
+    ports:
+      - "3142:3142"
+    volumes:
+      - apt-cacher-ng-cache:/var/cache/apt-cacher-ng
+      - apt-cacher-ng-logs:/var/log/apt-cacher-ng
+    deploy:
+        mode: replicated
+        replicas: 1
+        resources:
+          limits:
+            memory: 150M
+          reservations:
+            memory: 25M
+        restart_policy:
+          condition: on-failure
+          delay: 5s
+          max_attempts: 100
+          window: 120s
+
+volumes:
+  apt-cacher-ng-cache:
+  apt-cacher-ng-logs:
